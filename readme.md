@@ -27,8 +27,6 @@ Crea automáticamente los issues de tipo "Test" en Jira/Xray, enlazándolos a la
 El resultado: en lugar de pasar horas escribiendo TCs, el analista de QA (el "piloto") solo tiene que revisar, ajustar y aprobar los TCs generados, ahorrando una cantidad significativa de tiempo y esfuerzo.
 
 Arquitectura y Flujo de Trabajo
-[AQUÍ VA TU INCREÍBLE DIAGRAMA DE FLUJO]
-
 El flujo de la aplicación es el siguiente:
 
 Inicio: Un usuario (Analista de QA) ejecuta el script run_mcp.py desde la terminal, pasando un ID de issue (ej: python run_mcp.py --issue PROJ-123).
@@ -69,13 +67,9 @@ Un proyecto de Google Cloud con la API de Vertex AI habilitada y las credenciale
 2. Instalación
 Clona este repositorio:
 
-Bash
-
 git clone https://github.com/tu-usuario/mcp-xray-python.git
 cd mcp-xray-python
 Crea un entorno virtual:
-
-Bash
 
 python -m venv venv
 Activa el entorno virtual:
@@ -86,20 +80,14 @@ En Windows: .\venv\Scripts\activate
 
 Instala las dependencias:
 
-Bash
-
 pip install -r requirements.txt
 3. Configuración de Credenciales
 Este proyecto usa un archivo .env para manejar información sensible de forma segura.
 
 Crea una copia del archivo de ejemplo:
 
-Bash
-
 cp .env.example .env
 Abre el archivo .env con tu editor de texto y rellena TODAS las variables:
-
-Ini, TOML
 
 # Configuración de JIRA
 JIRA_URL="https://tu-instancia.atlassian.net"
@@ -117,19 +105,11 @@ GOOGLE_APPLICATION_CREDENTIALS="./ruta/a/tu/archivo-credenciales.json"
 
 # Configuración del Modelo Gemini
 GEMINI_MODEL_NAME="gemini-1.5-pro" # o el modelo que prefieras
-¡MUY IMPORTANTE! ⛔ El archivo .env contiene tus claves secretas. Asegúrate de que tu archivo .gitignore principal contenga la línea .env para evitar subirlo accidentalmente a GitHub.
-
 🏁 Uso
 Una vez que tu entorno virtual esté activado (venv) y tu archivo .env esté configurado, la ejecución es tan simple como correr el script run_mcp.py con el ID del issue de Jira.
 
-Bash
-
-# (Asegúrate de tener tu entorno virtual 'venv' activado)
-
 # Ejemplo de uso:
 python run_mcp.py --issue ALL-8296
-¡Listo! Solo enviando el ID de la card a la que quieres crear los TCs, la herramienta se encargará del resto.
-
 🤝 Contribuciones
 ¡Las contribuciones son bienvenidas! Si tienes ideas para mejorar la herramienta, optimizar los prompts de Gemini o añadir nuevas funcionalidades, por favor:
 
