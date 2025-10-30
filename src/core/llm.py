@@ -28,14 +28,11 @@ except ImportError:
     PROJECT_ID = None
     google_exceptions = None
 
-# Módulos Locales
 from .gherkin import sanitize_title, make_signature
-# Se elimina la importación de imágenes
 
 log = logging.getLogger(__name__)
 
 
-# --- Prompts Base (sin cambios) ---
 SYS_MSG_GENERATE_SCENARIOS = (
     "You are a highly experienced Senior QA Analyst. Your task is to analyze the full context of a user story from Jira and create a comprehensive set of test cases. You must be rigorous and cover all requirements provided.\n\n"
     "**YOUR RULES:**\n"
@@ -61,7 +58,7 @@ SYS_MSG_GENERATE_API_TESTS = (
 )
 
 
-# --- Helpers internos (sin cambios) ---
+# --- Helpers internos ---
 def _extract_first_json_object(s: str) -> Optional[str]:
     start = s.find("{")
     if start == -1: return None
@@ -133,8 +130,7 @@ def _response_text(response: Any) -> str:
                         continue
     return ""
 
-
-# src/core/llm.py
+# --- Funciones Principales ---
 
 def llm_generate_scenarios(
     issue_key: str,
@@ -153,8 +149,8 @@ def llm_generate_scenarios(
 
     # ---- Configuración y Modelos ----
     TIMEOUT = int(os.getenv("LLM_TIMEOUT", "120"))
-    # --- El nombre del modelo ahora se leerá correctamente desde .env ---
-    MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-001")
+    # --- El nombre del modelo ahora se leerá  desde .env ---
+    MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     
     try:
         # --- Construcción del Prompt (solo texto) ---
@@ -162,11 +158,11 @@ def llm_generate_scenarios(
             f"--- START OF JIRA ISSUE CONTEXT ---\n**USER STORY SUMMARY:** {summary}\n\n{full_context}\n--- END OF JIRA ISSUE CONTEXT ---"
         ]
 
-        # --- INICIO DE LOGS ADICIONALES ---
+        # --- INICIO DE LOGS---
         log.info(f"Contexto para '{issue_key}' tiene un tamaño de {len(full_context)} caracteres.")
         if len(full_context) > 1000000: # Un umbral de ejemplo, Flash tiene un contexto grande pero es bueno saber si es excesivo
             log.warning("El tamaño del contexto es muy grande, podría causar lentitud o errores.")
-        # --- FIN DE LOGS ADICIONALES ---
+        # --- FIN DE LOGS ---
 
         generation_config = {
             "response_mime_type": "application/json",
@@ -192,11 +188,11 @@ def llm_generate_scenarios(
         )
         elapsed_ms = int((time.time() - call_started) * 1000)
 
-        # --- INICIO DE LOGS ADICIONALES ---
+        # --- INICIO DE LOGS ---
         log.info(f">>> Respuesta recibida de Gemini en {elapsed_ms}ms.")
         raw_text = _response_text(response)
         log.debug(f"Respuesta en crudo de Gemini: {raw_text[:500]}...") # Logueamos los primeros 500 caracteres
-        # --- FIN DE LOGS ADICIONALES ---
+        # --- FIN DE LOGS  ---
 
         # --- Procesamiento de la Respuesta ---
         if not raw_text.strip():
@@ -232,23 +228,23 @@ def llm_generate_scenarios(
         log.error(f"Timeout o error de reintento con el modelo '{MODEL_NAME}': {e}")
         return fallback(f"La llamada a Gemini superó el tiempo de espera.")
     except Exception as e:
-        # --- INICIO DE LOGS ADICIONALES ---
+        # --- INICIO DE LOGS  ---
         log.error(f"Error inesperado con el modelo '{MODEL_NAME}': {e}", exc_info=True)
         # Intentamos obtener más detalles del error si están disponibles
         if hasattr(e, 'message'):
             log.error(f"Detalle del error: {e.message}")
-        # --- FIN DE LOGS ADICIONALES ---
+        # --- FIN DE LOGS ---
         return fallback(f"Excepción general: {e}")
 
 
-# --- La función de sincronización no necesita cambios ---
+# --- La función de sincronización  ---
 def llm_compare_and_sync(
     issue_key: str,
     summary: str,
     existing_tests: List[Dict[str, Any]],
     new_scenarios: List[Dict[str, str]],
 ) -> Dict[str, List[Dict[str, Any]]]:
-    # (El resto del archivo no necesita cambios)
+    
     log.info("Sincronizando escenarios generados con tests existentes...")
     to_create: List[Dict[str, str]] = []
     to_update: List[Dict[str, Any]] = []

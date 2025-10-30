@@ -85,7 +85,7 @@ def register_tools(mcp: Any):
         extra_labels = ["api-test"] if is_backend_task else []
         log.info(f"[{rid}] Detectada tarea de {'Backend' if is_backend_task else 'BDD/UI'} para {issue_key}.")
 
-        # --- LLAMADA DIRECTA Y SIMPLE A LA IA (COMO EN LA VERSIÓN ORIGINAL) ---
+        # --- LLAMADA DIRECTA Y SIMPLE A LA IA ---
         try:
             log.info(f"[{rid}] Llamando a llm_generate_scenarios directamente...")
             ideal_scenarios, gen_method = L.llm_generate_scenarios(
@@ -103,7 +103,7 @@ def register_tools(mcp: Any):
         if not ideal_scenarios:
             return {"ok": False, "error": f"FALLBACK: {gen_method}"}
 
-        # --- Lógica de Sincronización (sin cambios) ---
+        # --- Lógica de Sincronización ---
         log.info(f"[{rid}] Obteniendo tests existentes y creando plan de sync…")
         existing_tests = J.get_existing_tests_with_details(issue_key, target_project_key)
         sync_plan = L.llm_compare_and_sync(issue_key, summary_src, existing_tests, ideal_scenarios)

@@ -38,8 +38,6 @@ def _group_linked_tests_by_signature(parent_key: str, project_key: str) -> Dict[
         raw_title = parts[-1] if parts else full                      # derecha del último "|"
         norm_title = G.sanitize_title(parent_key, raw_title)          # "Validate …" sin prefijos
 
-        # --- LÍNEA CORREGIDA ---
-        # Leemos la descripción desde el diccionario 'fields'
         description_adf = (t.get("fields") or {}).get("description")
         blocks = A.adf_extract_codeblocks(description_adf)
         feature = "\n".join(blocks) if blocks else ""
@@ -101,9 +99,7 @@ def dedupe_linked_tests(parent_key: str, project_key: str, prefer: str = "newest
         "deleted": deleted,
     }
 
-# ------------------------
-# Utilidades de dedupe en memoria (por si las necesitas)
-# ------------------------
+
 def normalize_text(s: str) -> str:
     return _norm(s)
 
