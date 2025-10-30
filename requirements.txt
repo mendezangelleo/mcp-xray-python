@@ -1,0 +1,8 @@
+# src/requirements.txt
+
+google-generativeai
+requests
+python-dotenv
+mcp
+fastapi
+uvicorn

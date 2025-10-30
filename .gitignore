@@ -1,0 +1,17 @@
+# Entorno virtual
+venv/
+.venv/
+
+# Archivos de credenciales y configuración local
+.env
+*.env
+
+# Archivos temporales de Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# (Si usas Mac)
+.DS_Store
