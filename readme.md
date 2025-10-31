@@ -46,7 +46,7 @@ Backend: Python 3.10+
 
 Inteligencia Artificial: Google Gemini vía Google Cloud Vertex AI
 
-Integración: Jira REST API (con la librería jira)
+Integración: Jira REST API (usando la librería requests)
 
 CLI: argparse de Python.
 
@@ -108,8 +108,27 @@ GEMINI_MODEL_NAME="gemini-1.5-pro" # o el modelo que prefieras
 🏁 Uso
 Una vez que tu entorno virtual esté activado (venv) y tu archivo .env esté configurado, la ejecución es tan simple como correr el script run_mcp.py con el ID del issue de Jira.
 
-# Ejemplo de uso:
+# Ejemplo de uso básico:
 python run_mcp.py --issue ALL-8296
+
+# Ejemplo borrando tests obsoletos (en lugar de solo etiquetarlos):
+python run_mcp.py --issue ALL-8296 --delete-obsolete
+
+🧪 Pruebas Unitarias
+El proyecto incluye un conjunto de pruebas unitarias para asegurar la calidad y estabilidad del código en los módulos principales.
+
+1.  **Instalar dependencias de desarrollo:**
+    Asegúrate de tener `pytest` instalado (incluido en `requirements.txt`):
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+2.  **Ejecutar las pruebas:**
+    Desde la carpeta raíz del proyecto, simplemente ejecuta:
+    ```bash
+    pytest
+    ```
+
 🤝 Contribuciones
 ¡Las contribuciones son bienvenidas! Si tienes ideas para mejorar la herramienta, optimizar los prompts de Gemini o añadir nuevas funcionalidades, por favor:
 

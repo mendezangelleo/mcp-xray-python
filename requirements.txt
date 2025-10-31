@@ -6,3 +6,5 @@ python-dotenv
 mcp
 fastapi
 uvicorn
+pytest
+google-cloud-aiplatform

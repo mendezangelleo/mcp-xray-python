@@ -10,33 +10,33 @@ from . import gherkin as G
 log = logging.getLogger(__name__)
 
 # ------------------------
-# Normalización / firmas
+# Normalization / signatures
 # ------------------------
 def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").lower()).strip()
 
 def make_signature(title_norm: str, feature_text: str) -> str:
     """
-    Firma estable: título NORMALIZADO + gherkin (normalizado).
-    Debe coincidir con la que usemos al crear/leer tests.
+    Stable signature: NORMALIZED title + gherkin (normalized).
+    Must match the one we use when creating/reading tests.
     """
     payload = f"{_norm(title_norm)}|{_norm(feature_text)}".encode("utf-8")
     return hashlib.sha1(payload).hexdigest()
 
 # ------------------------
-# Lectura de tests linkeados
+# Reading linked tests
 # ------------------------
 def _group_linked_tests_by_signature(parent_key: str, project_key: str) -> Dict[str, List[Dict]]:
     """
-    Lee todos los Tests linkeados al parent y los agrupa por firma.
-    Retorna {signature: [ {key, created, norm_title, feature, summary}, ... ] }
+    Reads all Tests linked to the parent and groups them by signature.
+    Returns {signature: [ {key, created, norm_title, feature, summary}, ... ] }
     """
     buckets: Dict[str, List[Dict]] = {}
     for t in J.get_linked_test_issues(parent_key, project_key):
         full = (t.get("fields") or {}).get("summary", "")
         parts = [p.strip() for p in full.split("|")]
-        raw_title = parts[-1] if parts else full                      # derecha del último "|"
-        norm_title = G.sanitize_title(parent_key, raw_title)          # "Validate …" sin prefijos
+        raw_title = parts[-1] if parts else full                      # right of the last "|"
+        norm_title = G.sanitize_title(parent_key, raw_title)          # "Validate …" without prefixes
 
         description_adf = (t.get("fields") or {}).get("description")
         blocks = A.adf_extract_codeblocks(description_adf)
@@ -59,8 +59,8 @@ def _group_linked_tests_by_signature(parent_key: str, project_key: str) -> Dict[
 # ------------------------
 def find_duplicates(parent_key: str, project_key: str, prefer: str = "newest") -> Tuple[List[Dict], List[Dict]]:
     """
-    Devuelve (keep, drop) como listas de items Test.
-    prefer: "newest" (default) o "oldest" para decidir cuál queda.
+    Returns (keep, drop) as lists of Test items.
+    prefer: "newest" (default) or "oldest" to decide which one to keep.
     """
     keep, drop = [], []
     buckets = _group_linked_tests_by_signature(parent_key, project_key)
@@ -68,7 +68,7 @@ def find_duplicates(parent_key: str, project_key: str, prefer: str = "newest") -
     for sig, items in buckets.items():
         if len(items) == 1:
             keep.append(items[0]); continue
-        # ordenar por fecha de creación
+        # sort by creation date
         items_sorted = sorted(items, key=lambda x: x["created"] or "")
         if prefer == "oldest":
             keep_item = items_sorted[0]; to_drop = items_sorted[1:]
@@ -84,12 +84,12 @@ def delete_issues(keys: List[str]) -> List[str]:
             J.delete_issue(k)
             deleted.append(k)
         except Exception as e:
-            log.warning(f"No pude borrar {k}: {e}")
+            log.warning(f"Could not delete {k}: {e}")
     return deleted
 
 def dedupe_linked_tests(parent_key: str, project_key: str, prefer: str = "newest") -> Dict:
     """
-    Encuentra duplicados entre los Tests linkeados al parent y BORRA los sobrantes.
+    Finds duplicates among the Tests linked to the parent and DELETES the extras.
     """
     keep, drop = find_duplicates(parent_key, project_key, prefer=prefer)
     deleted = delete_issues([d["key"] for d in drop])

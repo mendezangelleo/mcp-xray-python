@@ -7,7 +7,7 @@ import time
 import uuid
 from typing import Any, Dict, List
 
-# Capa core
+# Core layer
 from core import adf as A
 from core import dedupe as D
 from core import gherkin as G
@@ -17,12 +17,12 @@ from core.config import DEFAULT_PROJECT_KEY, RELATES_LINK_TYPE
 
 log = logging.getLogger(__name__)
 
-# --- Constantes de configuración ---
+# --- Configuration Constants ---
 MAX_CONTEXT_CHARS = int(os.getenv("LLM_MAX_CONTEXT_CHARS", "16000"))
 MAX_COMMENTS = int(os.getenv("LLM_MAX_COMMENTS", "10"))
 MAX_COMMENT_CHARS = int(os.getenv("LLM_MAX_COMMENT_CHARS", "600"))
 
-# --- Helper para formatear comentarios ---
+# --- Helper for formatting comments ---
 def format_and_filter_comments(comments_data: list) -> str:
     if not comments_data:
         return "No additional comments."
@@ -39,7 +39,7 @@ def format_and_filter_comments(comments_data: list) -> str:
         formatted_comments.append(f"- Comment from {author}: {body_text}")
     return "\n".join(formatted_comments) if formatted_comments else "No relevant comments found."
 
-# --- Registro de Herramientas ---
+# --- Tool Registration ---
 def register_tools(mcp: Any):
 
     @mcp.tool()
@@ -59,10 +59,11 @@ def register_tools(mcp: Any):
         fill_xray: bool = False,
         max_tests: int = 20,
         prefer: str = "newest",
+        delete_obsolete: bool = False  # <-- NEW PARAMETER
     ) -> Dict[str, Any]:
         rid = uuid.uuid4().hex[:8]
         t0 = time.time()
-        log.info(f"[{rid}] Iniciando refinamiento de la suite de tests para {issue_key}…")
+        log.info(f"[{rid}] Starting test suite refinement for {issue_key}…")
 
         src = J.get_issue(issue_key)
         if not src.get("ok"):
@@ -76,18 +77,19 @@ def register_tools(mcp: Any):
             f"**ADDITIONAL COMMENTS & CLARIFICATIONS:**\n{relevant_comments}"
         )
         if len(full_context) > MAX_CONTEXT_CHARS:
-            log.info(f"[{rid}] Contexto > {MAX_CONTEXT_CHARS} chars; recortando…")
+            log.info(f"[{rid}] Context > {MAX_CONTEXT_CHARS} chars; truncating…")
             full_context = full_context[:MAX_CONTEXT_CHARS] + "\n\n[...truncated by server tool...]"
 
         labels_lower = [label.lower() for label in labels]
         is_backend_task = ("[be]" in summary_src.lower()) or ("backend" in labels_lower and "frontend" not in labels_lower)
         system_prompt = L.SYS_MSG_GENERATE_API_TESTS if is_backend_task else L.SYS_MSG_GENERATE_SCENARIOS
         extra_labels = ["api-test"] if is_backend_task else []
-        log.info(f"[{rid}] Detectada tarea de {'Backend' if is_backend_task else 'BDD/UI'} para {issue_key}.")
+        log.info(f"[{rid}] Detected {'Backend' if is_backend_task else 'BDD/UI'} task for {issue_key}.")
 
-        # --- LLAMADA DIRECTA Y SIMPLE A LA IA ---
+        # --- START: THIS BLOCK WAS MISSING IN THE PREVIOUS UPDATE ---
+        # --- DIRECT AND SIMPLE CALL TO THE AI ---
         try:
-            log.info(f"[{rid}] Llamando a llm_generate_scenarios directamente...")
+            log.info(f"[{rid}] Calling llm_generate_scenarios directly...")
             ideal_scenarios, gen_method = L.llm_generate_scenarios(
                 issue_key=issue_key,
                 summary=summary_src,
@@ -97,17 +99,20 @@ def register_tools(mcp: Any):
             )
         except Exception as e:
             elapsed = int((time.time() - t0) * 1000)
-            log.error(f"[{rid}] La llamada directa al LLM falló: {e} (took {elapsed}ms)", exc_info=True)
+            log.error(f"[{rid}] Direct LLM call failed: {e} (took {elapsed}ms)", exc_info=True)
             return {"ok": False, "error": f"LLM Exception: {e}"}
 
         if not ideal_scenarios:
             return {"ok": False, "error": f"FALLBACK: {gen_method}"}
+        
 
-        # --- Lógica de Sincronización ---
-        log.info(f"[{rid}] Obteniendo tests existentes y creando plan de sync…")
+        
+        log.info(f"[{rid}] Getting existing tests and creating sync plan…")
         existing_tests = J.get_existing_tests_with_details(issue_key, target_project_key)
         sync_plan = L.llm_compare_and_sync(issue_key, summary_src, existing_tests, ideal_scenarios)
-        created_report, updated_report, obsolete_report = [], [], []
+        
+        created_report, updated_report = [], []
+        obsolete_report, deleted_obsolete_report = [], [] 
 
         for item in sync_plan.get("to_update", []):
             J.update_test_issue(item['key'], item['summary'], item['steps'])
@@ -129,18 +134,28 @@ def register_tools(mcp: Any):
             created_report.append({**result, "tc_tag": tc_tag})
             cur_index += 1
 
-        for test in sync_plan.get("obsolete", []):
-            J.add_labels_to_issue(test['key'], ["revisar-obsoleto"])
-            obsolete_report.append(test['key'])
+   
+        obsolete_tests = sync_plan.get("obsolete", [])
+        if delete_obsolete:
+            log.warning(f"[{rid}] --delete-obsolete enabled. Deleting {len(obsolete_tests)} obsolete tests.")
+            keys_to_delete = [test['key'] for test in obsolete_tests]
+            deleted_obsolete_report = D.delete_issues(keys_to_delete)
+        else:
+            log.info(f"[{rid}] Marking {len(obsolete_tests)} tests as 'revisar-obsoleto'.")
+            for test in obsolete_tests:
+                J.add_labels_to_issue(test['key'], ["revisar-obsoleto"])
+                obsolete_report.append(test['key'])
+        
 
         
         dedupe_result = D.dedupe_linked_tests(parent_key=issue_key, project_key=target_project_key, prefer=prefer)
         elapsed = int((time.time() - t0) * 1000)
-        log.info(f"[{rid}] Flujo completado en {elapsed}ms. Creados={len(created_report)}; Actualizados={len(updated_report)}; Obsoletos={len(obsolete_report)}; Duplicados eliminados={len(dedupe_result.get('deleted', []))}")
+        log.info(f"[{rid}] Flow completed in {elapsed}ms. Created={len(created_report)}; Updated={len(updated_report)}; Obsolete={len(obsolete_report)}; Duplicates deleted={len(dedupe_result.get('deleted', []))}")
 
         return {
             "ok": True, "created": created_report, "updated": updated_report,
             "marked_as_obsolete": obsolete_report,
+            "deleted_as_obsolete": deleted_obsolete_report,
             "duplicates_deleted": dedupe_result.get("deleted", []),
         }
 

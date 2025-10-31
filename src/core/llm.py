@@ -7,7 +7,7 @@ import logging
 import time
 from typing import List, Dict, Tuple, Any, Optional
 
-# SDK de Google Vertex AI
+# Google Vertex AI SDK
 try:
     import vertexai
     from vertexai.generative_models import (
@@ -58,7 +58,7 @@ SYS_MSG_GENERATE_API_TESTS = (
 )
 
 
-# --- Helpers internos ---
+# --- Internal Helpers ---
 def _extract_first_json_object(s: str) -> Optional[str]:
     start = s.find("{")
     if start == -1: return None
@@ -72,7 +72,7 @@ def _extract_first_json_object(s: str) -> Optional[str]:
 
 
 def _response_text(response: Any) -> str:
-    """Extrae texto consolidado desde el objeto de respuesta de Gemini."""
+    """Extracts consolidated text from the Gemini response object."""
     if not response:
         return ""
     text_value = getattr(response, "text", None)
@@ -130,7 +130,7 @@ def _response_text(response: Any) -> str:
                         continue
     return ""
 
-# --- Funciones Principales ---
+# --- Main Functions ---
 
 def llm_generate_scenarios(
     issue_key: str,
@@ -141,28 +141,28 @@ def llm_generate_scenarios(
 ) -> Tuple[List[Dict[str, str]], str]:
 
     def fallback(reason: str) -> Tuple[List[Dict[str, str]], str]:
-        log.error(f"FALLBACK ACTIVADO para '{summary}': {reason}")
+        log.error(f"FALLBACK ACTIVATED for '{summary}': {reason}")
         return [], reason
 
     if not vertexai or not PROJECT_ID:
-        return fallback("Vertex AI SDK o GOOGLE_CLOUD_PROJECT_ID no disponibles.")
+        return fallback("Vertex AI SDK or GOOGLE_CLOUD_PROJECT_ID not available.")
 
-    # ---- Configuración y Modelos ----
+    # ---- Configuration and Models ----
     TIMEOUT = int(os.getenv("LLM_TIMEOUT", "120"))
-    # --- El nombre del modelo ahora se leerá  desde .env ---
+    # --- The model name will now be read from .env ---
     MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     
     try:
-        # --- Construcción del Prompt (solo texto) ---
+        # --- Prompt Construction (text only) ---
         prompt_parts: List[str] = [
             f"--- START OF JIRA ISSUE CONTEXT ---\n**USER STORY SUMMARY:** {summary}\n\n{full_context}\n--- END OF JIRA ISSUE CONTEXT ---"
         ]
 
-        # --- INICIO DE LOGS---
-        log.info(f"Contexto para '{issue_key}' tiene un tamaño de {len(full_context)} caracteres.")
-        if len(full_context) > 1000000: # Un umbral de ejemplo, Flash tiene un contexto grande pero es bueno saber si es excesivo
-            log.warning("El tamaño del contexto es muy grande, podría causar lentitud o errores.")
-        # --- FIN DE LOGS ---
+        # --- START OF LOGS ---
+        log.info(f"Context for '{issue_key}' has a size of {len(full_context)} characters.")
+        if len(full_context) > 1000000: # An example threshold, Flash has a large context but it's good to know if it's excessive
+            log.warning("Context size is very large, it could cause slowness or errors.")
+        # --- END OF LOGS ---
 
         generation_config = {
             "response_mime_type": "application/json",
@@ -176,8 +176,8 @@ def llm_generate_scenarios(
             SafetySetting(category=HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold=HarmBlockThreshold.BLOCK_NONE),
         ]
         
-        # --- Llamada a la API de Gemini ---
-        log.info(f"Intentando generar con el modelo '{MODEL_NAME}' (timeout={TIMEOUT}s)...")
+        # --- Gemini API Call ---
+        log.info(f"Attempting to generate with model '{MODEL_NAME}' (timeout={TIMEOUT}s)...")
         model = GenerativeModel(MODEL_NAME, system_instruction=system_prompt)
         
         call_started = time.time()
@@ -188,27 +188,27 @@ def llm_generate_scenarios(
         )
         elapsed_ms = int((time.time() - call_started) * 1000)
 
-        # --- INICIO DE LOGS ---
-        log.info(f">>> Respuesta recibida de Gemini en {elapsed_ms}ms.")
+        # --- START OF LOGS ---
+        log.info(f">>> Response received from Gemini in {elapsed_ms}ms.")
         raw_text = _response_text(response)
-        log.debug(f"Respuesta en crudo de Gemini: {raw_text[:500]}...") # Logueamos los primeros 500 caracteres
-        # --- FIN DE LOGS  ---
+        log.debug(f"Gemini raw response: {raw_text[:500]}...") # Log the first 500 characters
+        # --- END OF LOGS ---
 
-        # --- Procesamiento de la Respuesta ---
+        # --- Response Processing ---
         if not raw_text.strip():
-            return fallback("La respuesta de Gemini no incluyó texto utilizable.")
+            return fallback("Gemini response did not include usable text.")
 
         try:
             data = json.loads(raw_text)
         except json.JSONDecodeError:
             candidate = _extract_first_json_object(raw_text)
             if not candidate:
-                return fallback(f"La respuesta no era un JSON válido. Contenido: {raw_text[:200]}...")
+                return fallback(f"The response was not valid JSON. Content: {raw_text[:200]}...")
             data = json.loads(candidate)
         
         scenarios_from_llm = data.get("scenarios") or []
         if not scenarios_from_llm:
-            return fallback("El JSON de respuesta no contenía la clave 'scenarios'.")
+            return fallback("The JSON response did not contain the 'scenarios' key.")
 
         processed_scenarios: List[Dict[str, str]] = []
         for sc in scenarios_from_llm[:max_tests]:
@@ -219,25 +219,25 @@ def llm_generate_scenarios(
                 processed_scenarios.append({"title": title, "steps": steps_str})
 
         if not processed_scenarios:
-            return fallback("No se encontraron escenarios válidos en la respuesta del modelo.")
+            return fallback("No valid scenarios found in the model's response.")
 
-        log.info(f"{len(processed_scenarios)} escenarios generados con Gemini.")
+        log.info(f"{len(processed_scenarios)} scenarios generated with Gemini.")
         return processed_scenarios, "gemini"
 
     except (google_exceptions.DeadlineExceeded, google_exceptions.RetryError) as e:
-        log.error(f"Timeout o error de reintento con el modelo '{MODEL_NAME}': {e}")
-        return fallback(f"La llamada a Gemini superó el tiempo de espera.")
+        log.error(f"Timeout or retry error with model '{MODEL_NAME}': {e}")
+        return fallback(f"The call to Gemini exceeded the timeout.")
     except Exception as e:
-        # --- INICIO DE LOGS  ---
-        log.error(f"Error inesperado con el modelo '{MODEL_NAME}': {e}", exc_info=True)
-        # Intentamos obtener más detalles del error si están disponibles
+        # --- START OF LOGS ---
+        log.error(f"Unexpected error with model '{MODEL_NAME}': {e}", exc_info=True)
+        # We try to get more error details if they are available
         if hasattr(e, 'message'):
-            log.error(f"Detalle del error: {e.message}")
-        # --- FIN DE LOGS ---
-        return fallback(f"Excepción general: {e}")
+            log.error(f"Error detail: {e.message}")
+        # --- END OF LOGS ---
+        return fallback(f"General exception: {e}")
 
 
-# --- La función de sincronización  ---
+# --- The synchronization function ---
 def llm_compare_and_sync(
     issue_key: str,
     summary: str,
@@ -245,7 +245,7 @@ def llm_compare_and_sync(
     new_scenarios: List[Dict[str, str]],
 ) -> Dict[str, List[Dict[str, Any]]]:
     
-    log.info("Sincronizando escenarios generados con tests existentes...")
+    log.info("Synchronizing generated scenarios with existing tests...")
     to_create: List[Dict[str, str]] = []
     to_update: List[Dict[str, Any]] = []
     existing_map: Dict[str, Dict[str, Any]] = {}
@@ -285,6 +285,6 @@ def llm_compare_and_sync(
                 )
     obsolete = [test for norm_title, test in existing_map.items() if norm_title not in new_map]
     log.info(
-        f"Sincronización: {len(to_create)} para crear, {len(to_update)} para actualizar, {len(obsolete)} obsoletos."
+        f"Sync: {len(to_create)} to create, {len(to_update)} to update, {len(obsolete)} obsolete."
     )
     return {"to_create": to_create, "to_update": to_update, "obsolete": obsolete}

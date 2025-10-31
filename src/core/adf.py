@@ -81,7 +81,7 @@ def adf_collect_links(adf: dict) -> List[str]:
         elif isinstance(n, list):
             for x in n: walk(x)
     walk(adf or {})
-    # únicos
+    # unique
     return list(dict.fromkeys(links))
 
 def adf_has_media(adf: dict) -> bool:
@@ -134,7 +134,7 @@ def adf_extract_codeblocks(adf: dict, lang: str = "gherkin") -> list[str]:
 
 def dedupe_tests(tests: List[dict]) -> List[dict]:
     """
-    Elimina tests duplicados basándose en los pasos.
+    Removes duplicate tests based on steps.
     """
     seen = set()
     deduped = []
@@ -146,7 +146,7 @@ def dedupe_tests(tests: List[dict]) -> List[dict]:
     return deduped
 
 def build_copy_scenarios(items):
-    """Genera escenarios ES/EN a partir de filas de copys ya parseadas y elimina duplicados."""
+    """Generates ES/EN scenarios from parsed copy rows and removes duplicates."""
     scenarios = []
     for it in items:
         item = it["item"]

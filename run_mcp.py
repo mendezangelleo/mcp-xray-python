@@ -1,4 +1,4 @@
-# run_mcp.py (Versión Final Simplificada)
+# run_mcp.py (Updated version)
 import os
 import sys
 import logging
@@ -6,24 +6,24 @@ import json
 import argparse
 from dotenv import load_dotenv
 
-# --- PASO 1: Configurar el entorno y el path ---
+# --- STEP 1: Configure environment and path ---
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
 load_dotenv()
 os.environ.setdefault("GOOGLE_CLOUD_DISABLE_GRPC", "true")
 
-# Configuramos un logging para verlo todo en la consola
+# Configure logging to see everything in the console
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger("mcp_runner")
 
-# --- PASO 2: Importar la lógica principal ---
+# --- STEP 2: Import main logic ---
 try:
     from jt import register_tools
     import vertexai
 except ImportError as e:
-    log.error(f"No se pudo importar un módulo. Asegúrate de que la estructura de carpetas es correcta. Error: {e}")
+    log.error(f"Could not import a module. Ensure the folder structure is correct. Error: {e}")
     exit()
 
-# --- PASO 3: Simular el 'registro' para obtener la herramienta ---
+# --- STEP 3: Simulate 'registration' to get the tool ---
 class FakeMCP:
     def tool(self):
         def decorator(func):
@@ -31,29 +31,29 @@ class FakeMCP:
             return func
         return decorator
 
-# --- La función principal ahora es NORMAL (sin 'async') ---
-def main(issue_key: str, project_key: str):
+# --- The main function is now NORMAL (not 'async') ---
+def main(issue_key: str, project_key: str, delete_obsolete: bool):
     """
-    Función principal que ejecuta todo el flujo en un solo proceso.
+    Main function that runs the entire flow in a single process.
     """
-    log.info("--- INICIANDO EJECUCIÓN EN MODO UNIFICADO ---")
+    log.info("--- STARTING EXECUTION IN UNIFIED MODE ---")
 
     try:
-        # --- Inicializar dependencias ---
+        # --- Initialize dependencies ---
         PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT_ID")
         LOCATION = os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
         if not PROJECT_ID:
-            raise RuntimeError("ERROR CRÍTICO: Falta GOOGLE_CLOUD_PROJECT_ID en .env")
+            raise RuntimeError("CRITICAL ERROR: GOOGLE_CLOUD_PROJECT_ID missing in .env")
         vertexai.init(project=PROJECT_ID, location=LOCATION)
-        log.info("Vertex AI inicializado.")
+        log.info("Vertex AI initialized.")
 
-        # Obtenemos la función de la herramienta
+        # Get the tool function
         mcp_stub = FakeMCP()
         register_tools(mcp_stub)
         if not hasattr(mcp_stub, 'jira_generate_and_dedupe_tests_from_issue'):
-            raise RuntimeError("No se pudo obtener la función de la herramienta después de registrarla.")
+            raise RuntimeError("Could not get the tool function after registering it.")
         
-        # Preparamos los parámetros
+        # Prepare the payload
         payload = {
             "issue_key": issue_key,
             "target_project_key": project_key,
@@ -62,31 +62,38 @@ def main(issue_key: str, project_key: str):
             "fill_xray": False,
             "max_tests": 50,
             "prefer": "newest",
+            "delete_obsolete": delete_obsolete  # <-- HERE WE ADD THE NEW OPTION
         }
-        log.info(f"Ejecutando la herramienta con el payload: \n{json.dumps(payload, indent=2)}")
+        log.info(f"Executing tool with payload: \n{json.dumps(payload, indent=2)}")
         
-        # --- Ejecutar la herramienta (SIN 'await') ---
+        # --- Execute the tool (NO 'await') ---
         result = mcp_stub.jira_generate_and_dedupe_tests_from_issue(**payload)
 
-        # --- Mostrar el resultado ---
+        # --- Show the result ---
         print("\n" + "="*50)
-        log.info("¡PROCESO COMPLETADO!")
+        log.info("PROCESS COMPLETED!")
         if result and result.get("ok"):
-            log.info("La herramienta reportó ÉXITO.")
+            log.info("Tool reported SUCCESS.")
         else:
-            log.warning("La herramienta reportó un FALLO.")
+            log.warning("Tool reported FAILURE.")
         print(json.dumps(result, indent=2, ensure_ascii=False))
         print("="*50 + "\n")
 
     except Exception as e:
-        log.error("❌ La ejecución falló con una excepción inesperada.", exc_info=True)
+        log.error("❌ Execution failed with an unexpected exception.", exc_info=True)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Herramienta unificada para generar tests en Jira con IA")
-    parser.add_argument("--issue", required=True, help="Issue key de Jira (ej: ALL-7638)")
-    parser.add_argument("--project", default="ALL", help="Project key de Jira por defecto")
+    parser = argparse.ArgumentParser(description="Unified tool to generate Jira tests with AI")
+    parser.add_argument("--issue", required=True, help="Jira issue key (e.g., ALL-7638)")
+    parser.add_argument("--project", default="ALL", help="Default Jira project key")
+    # --- ADDING THE NEW ARGUMENT HERE ---
+    parser.add_argument(
+        "--delete-obsolete",
+        action="store_true",
+        help="Instead of tagging, delete obsolete tests."
+    )
     args = parser.parse_args()
     
-    # --- Llamamos a la función directamente (sin 'asyncio.run') ---
-    main(args.issue, args.project)
+    # --- Call the function directly (no 'asyncio.run') ---
+    main(args.issue, args.project, args.delete_obsolete)

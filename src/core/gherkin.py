@@ -15,10 +15,10 @@ def sanitize_title(issue_key: str, raw: str) -> str:
 
 def build_feature_single(summary: str, issue_key: str, sc: Dict[str,str]) -> str:
     """
-    Construye el texto de un archivo .feature para un único escenario.
+    Builds the .feature file text for a single scenario.
     """
     title = sc.get('title', 'Untitled Scenario')
-    # Sanitiza el título dentro del escenario para quitar el "Validate"
+    # Sanitize the title within the scenario to remove "Validate"
     scenario_title = title.replace("Validate ", "", 1)
     
     steps = sc.get('steps', '# No steps defined')
@@ -43,7 +43,7 @@ def make_signature(title: str, feature_text: str) -> str:
     return hashlib.sha1(payload).hexdigest()
 
 def steps_signature(steps: str) -> str:
-    """Firma basada sólo en pasos (útil para comparar contenido)."""
+    """Signature based only on steps (useful for comparing content)."""
     STEP_RX = re.compile(r"^\s*(Given|When|Then|And|But)\b", re.IGNORECASE)
     lines = []
     for raw in (steps or "").splitlines():
